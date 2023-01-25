@@ -4,7 +4,7 @@ This script builds in custom apps on the fly while compiling lineage. The apps a
 Here in this script:
 - Bromite WebView (Subsystem)
 - Bromite Browser (HTML-Viewer)
-- Neo-Storer (F-Droid Client)
+- Neo-Store (F-Droid Client)
 - DavX (CalDAV/CardDAV-Sync)
 - NewPipe (U-Tube)
 - (insert your favorite app here) ;-)
