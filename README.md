@@ -3,7 +3,7 @@ This script builds in custom apps on the fly while compiling lineage. The apps a
 
 Copy this script in your lineage repo dir "lineage_build_unified" and link this in file "buildbot_unified.sh", function "build_treble" after "lunch ...":
 
-build_treble() {
+"build_treble() {
     case "${1}" in
         ("A64VN") TARGET=a64_bvN;;
         ("A64VS") TARGET=a64_bvS;;
@@ -21,5 +21,5 @@ build_treble() {
     make -j$(nproc --all) systemimage
     mv $OUT/system.img ~/build-output/lineage-19.1-$BUILD_DATE-UNOFFICIAL-${TARGET}$(${PERSONAL} && echo "-personal" || echo "").img
     make vndk-test-sepolicy
-}
+}"
 
