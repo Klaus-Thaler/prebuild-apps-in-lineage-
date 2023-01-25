@@ -17,14 +17,8 @@
 
 echo "######## prebuild #################"
 
-echo $(pwd)
-cd 
-# sample for lineage 19
 cd ~/lineage-19.x-build-gsi
-pwd
 
-echo $(pwd)
-exit
 # replace hosts (if you want)
 cp ~/myBuiltScripte/BuildMyAndroid/hosts system/core/rootdir/etc/hosts
 
