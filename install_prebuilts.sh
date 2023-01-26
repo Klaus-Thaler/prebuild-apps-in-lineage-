@@ -17,51 +17,55 @@
 
 echo "######## prebuild #################"
 
+# sample for lineage 19
 cd ~/lineage-19.x-build-gsi
 
 # replace hosts (if you want)
 cp ~/myBuiltScripte/BuildMyAndroid/hosts system/core/rootdir/etc/hosts
 
+# replace your own bootanimation (if you want)
+cp ~/myBuiltScripte/BuildMyAndroid/bootanimation.zip out/target/product/phhgsi_arm64_ab/system/product/media/bootanimation.zip
+
 if [ ! -e prebuilts/mApps ]; then mkdir prebuilts/mApps; fi
 if [ ! -e prebuilts/mApps/tmp ]; then mkdir prebuilts/mApps/tmp; fi
-
-# download repo index.xml
-wget --connect-timeout=10 https://f-droid.org/repo/index.xml -O prebuilts/mApps/tmp/f-droid_index.xml
-wget --connect-timeout=10 https://fdroid.bromite.org/fdroid/repo/index.xml -O prebuilts/mApps/tmp/bromite_index.xml
-wget --connect-timeout=10 https://archive.newpipe.net/fdroid/repo/index.xml -O prebuilts/mApps/tmp/newpipe_index.xml
 
 echo -e "/tmp" > prebuilts/mApps/.gitignore
 echo -e '\nPRODUCT_BROKEN_VERIFY_USES_LIBRARIES := true\n' >> build/target/product/handheld_product.mk
 echo -e 'PRODUCT_PACKAGES += \\' >> build/target/product/handheld_product.mk
 
-downloadFromRepo () {
-	mkdir -p prebuilts/mApps/$_name
-	echo -e "/$_name" >> prebuilts/mApps/.gitignore
-	touch prebuilts/mApps/$_name/Android.mk
-	marketvercode="$(xmlstarlet sel -t -m '//application[id="'"$_app"'"]' -v ./marketvercode prebuilts/mApps/tmp/$_index || true)"
-	_apk="$_search"
-    if [ ! -f prebuilts/mApps/$_name/$_apk ];then
-		echo -e "Download and install -> $_apk\n"
-        while ! wget --connect-timeout=10 $_repo/$_apk -O prebuilts/mApps/$_name/$_apk; do sleep 10; echo "install"; done     
-    fi
+installSystemApk () {
+	mkdir -p prebuilts/mApps/$1
+	echo -e "/$1" >> prebuilts/mApps/.gitignore
+	touch prebuilts/mApps/$1/Android.mk
+	for _arch in $3; do
+		_apk="$(xmlstarlet sel -t -m '//application[id="'"$2"'"]/package[starts-with(nativecode,"'"$_arch"'")][1]' -v ./apkname prebuilts/mApps/tmp/$_index)"
+		echo "$_apk"
+		if [ ! -f prebuilts/mApps/$1/$_apk ];then
+			echo -e "Download and install -> $_apk\n"
+			while ! wget --connect-timeout=10 $_repo/$_apk -O prebuilts/mApps/$1/$_apk; do sleep 10; echo "install"; done     
+		fi
+	done
     # apps eintragen
-    echo -e "\t$_name \\" >> build/target/product/handheld_product.mk
+    echo -e "\t$1\\" >> build/target/product/handheld_product.mk
 }
 
-# install Bromite Webview
+# download repo bromite index.xml
 _repo="https://fdroid.bromite.org/fdroid/repo"
 _index="bromite_index.xml"
+wget --connect-timeout=10 $_repo/index.xml -O prebuilts/mApps/tmp/$_index
+
+# install Bromite Webview
 _name="WebView"
 _app="org.bromite.webview"
-_arch="arm64-v8a"
-_search=`xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[starts-with(nativecode,"'"$_arch"'")][1]' -v ./apkname prebuilts/mApps/tmp/$_index`
-downloadFromRepo
+_arch="arm64-v8a armeabi-v7a"
+_override="webview"
+installSystemApk $_name $_app $_arch
 
 cat > prebuilts/mApps/$_name/Android.mk <<EOF
 LOCAL_PATH :=  \$(call my-dir)
 include \$(CLEAR_VARS)
 LOCAL_MODULE := $_name
-LOCAL_OVERRIDES_PACKAGES := webview
+LOCAL_OVERRIDES_PACKAGES := $_override
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $_apk
 LOCAL_MODULE_CLASS := APPS
@@ -74,24 +78,23 @@ LOCAL_REQUIRED_MODULES := \\
 	libwebviewchromium_loader \\
 	libwebviewchromium_plat_support	
 LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
-LOCAL_PREBUILT_JNI_LIBS_arm64 := @lib/$_arch/libwebviewchromium.so
+LOCAL_PREBUILT_JNI_LIBS_arm := @lib/armeabi-v7a/libwebviewchromium.so
+LOCAL_PREBUILT_JNI_LIBS_arm64 := @lib/arm64-v8a/libwebviewchromium.so
 include \$(BUILD_PREBUILT)
-
 EOF
 
 # install Bromite HTML-Viewer
-_repo="https://fdroid.bromite.org/fdroid/repo"
-_index="bromite_index.xml"
 _name="Bromite"
 _app="org.bromite.bromite"
-_arch="arm64-v8a"
-_search=`xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[starts-with(nativecode,"'"$_arch"'")][1]' -v ./apkname prebuilts/mApps/tmp/$_index`
-downloadFromRepo
+_arch="arm64-v8a armeabi-v7a"
+_override="Jelly"
+installSystemApk $_name $_app $_arch
 
 cat > prebuilts/mApps/$_name/Android.mk <<EOF
 LOCAL_PATH := \$(call my-dir)
 include \$(CLEAR_VARS)
 LOCAL_MODULE := $_name
+LOCAL_OVERRIDES_PACKAGES := $_override
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $_apk
 LOCAL_CERTIFICATE := PRESIGNED
@@ -103,19 +106,25 @@ include \$(BUILD_PREBUILT)
 
 EOF
 
-# install Neo-Store
-_repo="https://f-droid.org/repo"
-_index="f-droid_index.xml"
-_name="Neo-Store"
-_app="com.machiav3lli.fdroid"
-_arch="arm64-v8a"
-_search=`xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[versioncode="'"$marketvercode"'"]' -v ./apkname prebuilts/mApps/tmp/$_index || xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[1]' -v ./apkname prebuilts/mApps/tmp/$_index`
-downloadFromRepo
-
-cat > prebuilts/mApps/$_name/Android.mk <<EOF
+# user apps
+installUserApk () {
+	mkdir -p prebuilts/mApps/$1
+	echo -e "/$1" >> prebuilts/mApps/.gitignore
+	touch prebuilts/mApps/$1/Android.mk
+	marketvercode="$(xmlstarlet sel -t -m '//application[id="'"$2"'"]' -v ./marketvercode prebuilts/mApps/tmp/$_index || true)"
+	_apk="$(xmlstarlet sel -t -m '//application[id="'"$2"'"]/package[versioncode="'"$marketvercode"'"]' -v ./apkname prebuilts/mApps/tmp/$_index || xmlstarlet sel -t -m '//application[id="'"$2"'"]/package[1]' -v ./apkname prebuilts/mApps/tmp/$_index)"
+    if [ ! -f prebuilts/mApps/$1/$_apk ];then
+		echo -e "Download and install -> $_apk\n"
+        while ! wget --connect-timeout=10 $_repo/$_apk -O prebuilts/mApps/$1/$_apk; do sleep 10; echo "install"; done     
+    fi
+    # apps eintragen
+    echo -e "\t$1 \\" >> build/target/product/handheld_product.mk
+    
+    cat > prebuilts/mApps/$1/Android.mk <<EOF
 LOCAL_PATH := \$(call my-dir)
 include \$(CLEAR_VARS)
-LOCAL_MODULE := $_name
+LOCAL_MODULE := $1
+LOCAL_OVERRIDES_PACKAGES := $3
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $_apk
 LOCAL_CERTIFICATE := PRESIGNED
@@ -125,52 +134,71 @@ LOCAL_PRODUCT_MODULE := true
 include \$(BUILD_PREBUILT)
 
 EOF
+}
+
+# download repo f-droid index.xml
+_repo="https://f-droid.org/repo"
+_index="f-droid_index.xml"
+wget --connect-timeout=10 $_repo/index.xml -O prebuilts/mApps/tmp/$_index
+
+# install f-droid extra privileg
+_name="FDroidPrivilegedExtension"
+_app="org.fdroid.fdroid.privileged"
+installUserApk $_name $_app "F-Droid"
+cat > prebuilts/mApps/$_name/Android.mk <<EOF
+LOCAL_PATH := \$(call my-dir)
+include \$(CLEAR_VARS)
+LOCAL_MODULE := privapp-permissions-org.fdroid.fdroid.privileged.xml
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := \$(TARGET_OUT_ETC)/permissions
+LOCAL_SRC_FILES := \$(LOCAL_MODULE)
+include \$(BUILD_PREBUILT)
+include \$(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := $_name
+LOCAL_SRC_FILES := $_apk
+LOCAL_MODULE_CLASS := APPS
+LOCAL_PRIVILEGED_MODULE := true
+LOCAL_MODULE_SUFFIX := \$(COMMON_ANDROID_PACKAGE_SUFFIX)
+LOCAL_CERTIFICATE := PRESIGNED
+LOCAL_REQUIRED_MODULES := privapp-permissions-org.fdroid.fdroid.privileged.xml
+include \$(BUILD_PREBUILT)
+EOF
+cat > prebuilts/mApps/$_name/privapp-permissions-org.fdroid.fdroid.privileged.xml <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <privapp-permissions package="$_app">
+        <permission name="android.permission.DELETE_PACKAGES"/>
+        <permission name="android.permission.INSTALL_PACKAGES"/>
+    </privapp-permissions>
+</permissions>
+EOF
+
+#installUserApk
+# install F-Droid
+installUserApk "F-Droid" "org.fdroid.fdroid"
+
+# install Neo Backup
+installUserApk "Neo-Backup" "com.machiav3lli.backup" "backup"
 
 # install DavDroid
-_repo="https://f-droid.org/repo"
-_index="f-droid_index.xml"
-_name="DavDroid"
-_app="at.bitfire.davdroid"
-_arch="arm64-v8a"
-_search=`xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[versioncode="'"$marketvercode"'"]' -v ./apkname prebuilts/mApps/tmp/$_index || xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[1]' -v ./apkname prebuilts/mApps/tmp/$_index`
-downloadFromRepo
+installUserApk "DavDroid" "at.bitfire.davdroid" ""
 
-cat > prebuilts/mApps/$_name/Android.mk <<EOF
-LOCAL_PATH := \$(call my-dir)
-include \$(CLEAR_VARS)
-LOCAL_MODULE := $_name
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $_apk
-LOCAL_CERTIFICATE := PRESIGNED
-LOCAL_MODULE_CLASS := APPS
-LOCAL_MODULE_SUFFIX := \$(COMMON_ANDROID_PACKAGE_SUFFIX)
-LOCAL_PRODUCT_MODULE := true
-include \$(BUILD_PREBUILT)
+# install FairMail
+installUserApk "FairMail" "eu.faircode.email" "E-Mail"
 
-EOF
+# install OpenCamera
+installUserApk "OpenCamera" "net.sourceforge.opencamera" "Camera2"
 
-# install NewPipe
+# install KeePassX
+installUserApk "KeePassX" "com.kunzisoft.keepass.libre" "keepass"
+
+# install newpipe
 _repo="https://archive.newpipe.net/fdroid/repo/"
 _index="newpipe_index.xml"
-_name="NewPipe"
-_app="org.schabi.newpipe"
-_arch="arm64-v8a"
-_search=`xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[versioncode="'"$marketvercode"'"]' -v ./apkname prebuilts/mApps/tmp/$_index || xmlstarlet sel -t -m '//application[id="'"$_app"'"]/package[1]' -v ./apkname prebuilts/mApps/tmp/$_index`
-downloadFromRepo
-
-cat > prebuilts/mApps/$_name/Android.mk <<EOF
-LOCAL_PATH := \$(call my-dir)
-include \$(CLEAR_VARS)
-LOCAL_MODULE := $_name
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $_apk
-LOCAL_CERTIFICATE := PRESIGNED
-LOCAL_MODULE_CLASS := APPS
-LOCAL_MODULE_SUFFIX := \$(COMMON_ANDROID_PACKAGE_SUFFIX)
-LOCAL_PRODUCT_MODULE := true
-include \$(BUILD_PREBUILT)
-
-EOF
+wget --connect-timeout=10 $_repo/index.xml -O prebuilts/mApps/tmp/$_index
+installUserApk "NewPipe" "org.schabi.newpipe" ""
 
 echo "fine"
 exit 0
