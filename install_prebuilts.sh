@@ -23,9 +23,6 @@ cd ~/lineage-19.x-build-gsi
 # replace hosts (if you want)
 cp ~/myBuiltScripte/BuildMyAndroid/hosts system/core/rootdir/etc/hosts
 
-# replace your own bootanimation (if you want)
-cp ~/myBuiltScripte/BuildMyAndroid/bootanimation.zip out/target/product/phhgsi_arm64_ab/system/product/media/bootanimation.zip
-
 if [ ! -e prebuilts/mApps ]; then mkdir prebuilts/mApps; fi
 if [ ! -e prebuilts/mApps/tmp ]; then mkdir prebuilts/mApps/tmp; fi
 
